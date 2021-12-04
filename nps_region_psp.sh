@@ -4,6 +4,7 @@
 
 # get directory where the scripts are located
 SCRIPT_DIR="$(dirname "$(readlink -f "$(which "${0}")")")"
+#SCRIPT_DIR="/media/wd3red3/Ps-Vita/no-pay-station-games"
 
 # source shared functions
 . "${SCRIPT_DIR}/functions.sh"
@@ -120,17 +121,15 @@ my_usage(){
     echo "Parameters:"
     echo "--region|-r <REGION>             valid regions: US JP ASIA EU"
     echo "--nps-dir|-d <DIR>               path to the directory containing the tsv files"
-    echo "--type|-t <TYPE>                 valid types: game update dlc"
     echo "--torrent|-c <ANNOUNCE URL>      Enables torrent creation. Needs announce url"
     echo "--source|-s <SOURCE TAG>         Enables source flag. Needs source tag as argument"
-    echo "--all|-a                         Download all update instead of only latest"
     echo ""
     echo "The \"--source\" and \"--torrent\" parameter are optional. All other"
     echo "parameters are required. The source parameter"
     echo "is required for private torrent trackers only"
     echo ""
     echo "Usage:"
-    echo "${0} --region <REGION> --type Game --nps-dir </path/to/nps/directory> [--torrent \"http://announce.url\"] [--source <SOURCE_TAG>]"
+    echo "${0} --region <REGION> --nps-dir </path/to/nps/directory> [--torrent \"http://announce.url\"] [--source <SOURCE_TAG>]"
 }
 
 # setting variable defaults
@@ -173,17 +172,6 @@ do
             REGION="${1}"
             shift
             ;;
-        -t|--type)
-            test -n "${1}"
-            exit_if_fail "\"-t\" used without type argument used"
-            check_type "${1}"
-            TYPE="${1}"
-            shift
-            ;;
-        -a|--all)
-            UPDATE_ALL=1
-            shift
-            ;;
         *)
             echo "Invalid parameter used."
             my_usage
@@ -208,7 +196,7 @@ MY_BINARIES="pkg2zip mktorrent sed"
 check_binaries "${MY_BINARIES}"
 
 ### check if every parameter is set
-if [ -z "${REGION}" ] || [ -z "${NPS_DIR}" ] || [ -z "${TYPE}" ]
+if [ -z "${REGION}" ] || [ -z "${NPS_DIR}" ]
 then
     echo "ERROR: Not every necessary option specified."
     my_usage
@@ -217,42 +205,14 @@ fi
 
 NPS_ABSOLUTE_PATH="$(readlink -f "${NPS_DIR}")"
 
-# choose fitting TSV file
-case "${TYPE}" in
-    "game")
-        tsv_file="PSV_GAMES.tsv"
-        PARAMS="${NPS_ABSOLUTE_PATH}/${tsv_file}"
-        download_script="${SCRIPT_DIR}/nps_game.sh"
-        ;;
-    "update")
-        if [ ${UPDATE_ALL} -eq 1 ]
-        then
-            PARAMS="-a"
-        fi
-        download_script="${SCRIPT_DIR}/nps_update.sh"
-        ;;
-    "dlc")
-        tsv_file="PSV_DLCS.tsv"
-        PARAMS="${NPS_ABSOLUTE_PATH}/${tsv_file}"
-        download_script="${SCRIPT_DIR}/nps_dlc.sh"
-        ;;
-    "changelog")
-        tsv_file="PSV_GAMES.tsv"
-        PARAMS=""
-        download_script="nps_changelog.sh"
-        ;;
-    "all")
-        DOWNLOAD_ALL=1
-#        tsv_file="PSV_GAMES.tsv"
-#        PARAMS=""
-#        download_script="${SCRIPT_DIR}/nps_changelog.sh"
-        ;;
-esac
-
+tsv_file="PSP_GAMES.tsv"
+PARAMS="${NPS_ABSOLUTE_PATH}/${tsv_file}"
+download_script="${SCRIPT_DIR}/nps_psp.sh"
+        
 ### check if the game file is available to call download scripts
-if [ ! -e "${NPS_ABSOLUTE_PATH}/PSV_GAMES.tsv" ]
+if [ ! -e "${NPS_ABSOLUTE_PATH}/PSP_GAMES.tsv" ]
 then
-    echo "*.tsv file \"PSV_GAMES.tsv\" in path \"${NPS_DIR}\" missing."
+    echo "*.tsv file \"PSP_GAMES.tsv\" in path \"${NPS_DIR}\" missing."
     echo "This is needed to identify every game of a region."
     exit 1
 fi
@@ -282,7 +242,7 @@ case "${REGION}" in
         ;;
 esac
 
-COLLECTION_NAME="Sony - PlayStation Vita (${REGION_COLLECTION}) - (${TYPE})"
+COLLECTION_NAME="Sony - PlayStation Portable (${REGION_COLLECTION})"
 
 MY_PATH=$(pwd)
 test ! -d "${MY_PATH}/${COLLECTION_NAME}" && mkdir "${MY_PATH}/${COLLECTION_NAME}"
@@ -293,34 +253,22 @@ cd "${MY_PATH}/${COLLECTION_NAME}"
 echo "about to loop through the tsv file"
 echo "path = ${NPS_ABSOLUTE_PATH}"
 echo "region = ${REGION}"
-for TITLE_ID in $(grep $'\t'"${REGION}"$'\t' "${NPS_ABSOLUTE_PATH}/PSV_GAMES.tsv" | awk '{ print $1 }');
+for TITLE_ID in $(grep $'\t'"${REGION}"$'\t' "${NPS_ABSOLUTE_PATH}/PSP_GAMES.tsv" | awk '{ print $1 }');
 do
     echo "--------------------------------------------";
     echo "Downloading and packing \"${TITLE_ID}\"...";
-    echo "Download all = ${DOWNLOAD_ALL}"
-    if [ ${DOWNLOAD_ALL} -eq 1 ];
-    then
-        ${SCRIPT_DIR}/nps_game.sh "${NPS_ABSOLUTE_PATH}/PSV_GAMES.tsv" "${TITLE_ID}"
-        check_return_code ${?} "game"
-        GAME_NAME="$(cat "${TITLE_ID}.txt")"
-        GAME_NAME="$(region_rename "${GAME_NAME}")"
-        if [ ${UPDATE_ALL} -eq 1 ]
-        then
-            DESTDIR="${GAME_NAME}" ${SCRIPT_DIR}/nps_update.sh -a "${TITLE_ID}"
-        else
-            DESTDIR="${GAME_NAME}" ${SCRIPT_DIR}/nps_update.sh "${TITLE_ID}"
-        fi
-        echo "DESTDIR = ${DESTDIR}"
-        check_return_code ${?} "update"
-        DESTDIR="${GAME_NAME}" ${SCRIPT_DIR}/nps_dlc.sh "${NPS_ABSOLUTE_PATH}/PSV_DLCS.tsv" "${TITLE_ID}"
-        check_return_code ${?} "dlc"
-    else
-        echo "download script = ${download_script}"
-        "${download_script}" ${PARAMS} "${TITLE_ID}"
-        check_return_code ${?} "${TYPE}"
-    fi
+    echo "script dir =  \"${SCRIPT_DIR}\"...";
+
+        ${SCRIPT_DIR}/nps_psp.sh "${NPS_ABSOLUTE_PATH}/PSP_GAMES.tsv" "${TITLE_ID}"
+        rm ${TITLE_ID}.txt
+   #     check_return_code ${?} "game"
+    #    GAME_NAME="$(cat "${TITLE_ID}.txt")"
+     #   GAME_NAME="$(region_rename "${GAME_NAME}")"
+
+    #DESTDIR="${GAME_NAME}" ${SCRIPT_DIR}/nps_update.sh "${TITLE_ID}"
+    
     ### remove temporary game name file
-    test -f ${TITLE_ID}.txt && rm "${TITLE_ID}.txt"
+    #test -f ${TITLE_ID}.txt && rm "${TITLE_ID}.txt"
 done;
 
 echo "done looping through the tsv file"
